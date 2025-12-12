@@ -2,8 +2,9 @@ version: '3.8'
 
 services:
   efteling-height-checker:
-    build: .
-    container_name: efteling-height-checker
+    # build: .            # if not using prio build image
+    # container_name: efteling-height-checker    # if not using prio build image
+    image: efteling-height-checker
     ports:
       - "5000:5000"
     volumes:
