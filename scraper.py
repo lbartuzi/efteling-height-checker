@@ -67,30 +67,315 @@ SHOW_SLUGS = {
 }
 
 # Fallback data based on official Efteling requirements
+# Key insight from Efteling website:
+# - "Children < X m under supervision" = No minimum, but needs supervision below X
+# - "Children < X m with company aged 16+" = No minimum, but needs companion below X  
+# - "Minimum length X m" = Hard minimum, cannot ride below X
+#
+# Data model:
+# - min_height_cm: Hard minimum to ride AT ALL (None = no minimum)
+# - supervision_height_cm: Below this height, needs supervision (but CAN ride)
+# - companion_age: Age of required companion (usually 16)
+#
+# Access conditions (icons from Efteling website):
+# - wheelchair: "accessible", "transfer", "not_accessible"
+# - pregnant: True = not suitable
+# - injuries: True = not suitable  
+# - cameras: True = not allowed
+# - guide_dogs: True = allowed
+# - single_rider: True = available
+
 FALLBACK_HEIGHT_DATA = {
-    "Baron 1898": {"min_height_cm": 132, "advisory_age": 9},
-    "Python": {"min_height_cm": 120},
-    "Joris en de Draak": {"min_height_cm": 120, "min_height_with_companion_cm": 110, "companion_age": 16},
-    "Vogel Rok": {"min_height_cm": 120},
-    "Max & Moritz": {"min_height_cm": 130, "min_height_with_companion_cm": 100, "companion_age": 16},
-    "De Vliegende Hollander": {"min_height_cm": 120},
-    "Piraña": {"min_height_cm": 120},
-    "Gondoletta": {"min_height_cm": 120},
-    "Danse Macabre": {"min_height_cm": 120, "advisory_age": 8},
-    "Symbolica": {"min_height_cm": 120},
-    "Droomvlucht": {"min_height_cm": 100},
-    "Fata Morgana": {"min_height_cm": 120},
-    "Carnaval Festival": {"min_height_cm": 100},
-    "Villa Volta": {"min_height_cm": 100},
-    "Halve Maen": {"min_height_cm": 120},
-    "Pagode": {"min_height_cm": 100},
-    "Sirocco": {"min_height_cm": 100},
-    "Stoomtrein": {"min_height_cm": 100},
-    "De Monorail": {"min_height_cm": 120},
-    "De Oude Tufferbaan": {"min_height_cm": 110},
-    "Kinderspoor": {"min_height_cm": 120},
-    "Stoomcarrousel": {"min_height_cm": 100},
-    "Anton Pieckplein": {"min_height_cm": 100},
+    # === STRICT MINIMUM HEIGHT (cannot ride below this) ===
+    "Baron 1898": {
+        "min_height_cm": 132, 
+        "advisory_age": 9,
+        "access": {
+            "wheelchair": "transfer",
+            "pregnant": True,
+            "injuries": True,
+            "cameras": True,
+        }
+    },
+    "Python": {
+        "min_height_cm": 120,
+        "access": {
+            "wheelchair": "transfer",
+            "pregnant": True,
+            "injuries": True,
+        }
+    },
+    "Vogel Rok": {
+        "min_height_cm": 120,
+        "access": {
+            "wheelchair": "transfer",
+            "pregnant": True,
+            "injuries": True,
+        }
+    },
+    "De Vliegende Hollander": {
+        "min_height_cm": 120,
+        "access": {
+            "wheelchair": "transfer",
+            "pregnant": True,
+            "injuries": True,
+            "wet": True,
+        }
+    },
+    "Halve Maen": {
+        "min_height_cm": 120,
+        "access": {
+            "wheelchair": "not_accessible",
+            "pregnant": True,
+            "injuries": True,
+        }
+    },
+    "Danse Macabre": {
+        "min_height_cm": 120, 
+        "advisory_age": 8,
+        "access": {
+            "wheelchair": "transfer",
+            "pregnant": True,
+            "injuries": True,
+            "dark": True,
+            "loud": True,
+            "fog": True,
+        }
+    },
+    
+    # === WITH COMPANION RANGE (can ride below min if with companion) ===
+    "Joris en de Draak": {
+        "min_height_cm": 120, 
+        "supervision_height_cm": 110, 
+        "companion_age": 16,
+        "access": {
+            "wheelchair": "transfer",
+            "pregnant": True,
+            "injuries": True,
+            "single_rider": True,
+        }
+    },
+    "Max & Moritz": {
+        "min_height_cm": 130, 
+        "supervision_height_cm": 100, 
+        "companion_age": 16,
+        "access": {
+            "wheelchair": "transfer",
+            "pregnant": True,
+            "injuries": True,
+        }
+    },
+    
+    # === SUPERVISION BELOW HEIGHT (no minimum, but supervision needed below X) ===
+    "Stoomcarrousel": {
+        "min_height_cm": None, 
+        "supervision_height_cm": 100, 
+        "companion_age": None,
+        "access": {
+            "wheelchair": "transfer",
+            "loud": True,
+            "dizzy": True,
+        }
+    },
+    "De Oude Tufferbaan": {
+        "min_height_cm": None, 
+        "supervision_height_cm": 110, 
+        "companion_age": 16,
+        "access": {
+            "wheelchair": "transfer",
+            "guide_dogs": True,
+        }
+    },
+    "Anton Pieckplein": {
+        "min_height_cm": None, 
+        "supervision_height_cm": 100, 
+        "companion_age": None,
+        "access": {
+            "wheelchair": "transfer",
+        }
+    },
+    "Gondoletta": {
+        "min_height_cm": None, 
+        "supervision_height_cm": 120, 
+        "companion_age": 16,
+        "access": {
+            "wheelchair": "transfer",
+            "guide_dogs": True,
+        }
+    },
+    "Piraña": {
+        "min_height_cm": None, 
+        "supervision_height_cm": 120, 
+        "companion_age": 16,
+        "access": {
+            "wheelchair": "transfer",
+            "pregnant": True,
+            "injuries": True,
+            "wet": True,
+        }
+    },
+    "Symbolica": {
+        "min_height_cm": None, 
+        "supervision_height_cm": 100, 
+        "companion_age": 16,
+        "access": {
+            "wheelchair": "accessible",
+            "guide_dogs": True,
+            "dark": True,
+            "surprising": True,
+        }
+    },
+    "Droomvlucht": {
+        "min_height_cm": None, 
+        "supervision_height_cm": 100, 
+        "companion_age": 16,
+        "access": {
+            "wheelchair": "transfer",
+            "dark": True,
+        }
+    },
+    "Fata Morgana": {
+        "min_height_cm": None, 
+        "supervision_height_cm": 100, 
+        "companion_age": 16,
+        "access": {
+            "wheelchair": "transfer",
+            "guide_dogs": True,
+            "dark": True,
+            "fire": True,
+        }
+    },
+    "Carnaval Festival": {
+        "min_height_cm": None, 
+        "supervision_height_cm": 100, 
+        "companion_age": 16,
+        "access": {
+            "wheelchair": "transfer",
+            "loud": True,
+        }
+    },
+    "Villa Volta": {
+        "min_height_cm": None, 
+        "supervision_height_cm": 100, 
+        "companion_age": 16,
+        "access": {
+            "wheelchair": "transfer",
+            "pregnant": True,
+            "injuries": True,
+            "dizzy": True,
+            "dark": True,
+        }
+    },
+    "Pagode": {
+        "min_height_cm": None, 
+        "supervision_height_cm": 100, 
+        "companion_age": 16,
+        "access": {
+            "wheelchair": "not_accessible",
+        }
+    },
+    "Sirocco": {
+        "min_height_cm": None, 
+        "supervision_height_cm": 100, 
+        "companion_age": 16,
+        "access": {
+            "wheelchair": "transfer",
+            "dizzy": True,
+        }
+    },
+    "Stoomtrein": {
+        "min_height_cm": None, 
+        "supervision_height_cm": 120, 
+        "companion_age": 16,
+        "access": {
+            "wheelchair": "accessible",
+            "guide_dogs": True,
+        }
+    },
+    "De Monorail": {
+        "min_height_cm": None, 
+        "supervision_height_cm": 120, 
+        "companion_age": 16,
+        "access": {
+            "wheelchair": "not_accessible",
+        }
+    },
+    "Kinderspoor": {
+        "min_height_cm": None, 
+        "supervision_height_cm": 120, 
+        "companion_age": 16,
+        "access": {
+            "wheelchair": "not_accessible",
+        }
+    },
+    "Fabula": {
+        "min_height_cm": None, 
+        "supervision_height_cm": 100, 
+        "companion_age": None,
+        "access": {
+            "wheelchair": "accessible",
+            "guide_dogs": True,
+            "loud": True,
+            "surprising": True,
+        }
+    },
+    
+    # === NO HEIGHT REQUIREMENTS ===
+    "Sprookjesbos": {
+        "access": {
+            "wheelchair": "accessible",
+            "guide_dogs": True,
+        }
+    },
+    "Het Volk van Laaf": {
+        "access": {
+            "wheelchair": "accessible",
+            "guide_dogs": True,
+        }
+    },
+    "Diorama": {
+        "access": {
+            "wheelchair": "accessible",
+            "guide_dogs": True,
+        }
+    },
+    "Archipel": {
+        "access": {
+            "wheelchair": "accessible",
+            "wet": True,
+        }
+    },
+    "Nest!": {
+        "access": {
+            "wheelchair": "accessible",
+        }
+    },
+    "Kindervreugd": {
+        "access": {
+            "wheelchair": "accessible",
+        }
+    },
+    "Kleuterhof": {
+        "access": {
+            "wheelchair": "accessible",
+        }
+    },
+    "Efteling Museum": {
+        "access": {
+            "wheelchair": "accessible",
+            "guide_dogs": True,
+        }
+    },
+    "Holle Bolle Gijs": {
+        "access": {
+            "wheelchair": "accessible",
+        }
+    },
+    "Game Gallery": {
+        "access": {
+            "wheelchair": "accessible",
+        }
+    },
 }
 
 ATTRACTION_NOTES = {
@@ -185,12 +470,12 @@ def scrape_efteling_attraction(slug: str, base_info: dict, session) -> dict:
         "name_dutch": base_info.get("name_dutch"),
         "type": base_info["type"],
         "type_dutch": base_info.get("type_dutch"),
-        "min_height_cm": None,
-        "min_height_with_companion_cm": None,
-        "companion_age": None,
-        "advisory_age": None,
+        "min_height_cm": None,  # Hard minimum to ride at all
+        "supervision_height_cm": None,  # Below this needs supervision/companion
+        "companion_age": None,  # Required companion age (usually 16)
+        "advisory_age": None,  # Recommended minimum age
         "notes": "",
-        "warnings": [],
+        "access": {},  # Access conditions (wheelchair, pregnant, etc.)
         "url": url,
         "category": "attraction",
         "scrape_status": "pending"
@@ -204,15 +489,14 @@ def scrape_efteling_attraction(slug: str, base_info: dict, session) -> dict:
     soup = BeautifulSoup(html, 'html.parser')
     page_text = soup.get_text().lower()
     
-    # Extract minimum height
-    height_patterns = [
+    # Pattern 1: Hard minimum height "Minimum length X m" or "Minimum height X m"
+    min_patterns = [
         r'minimum\s+(?:height|length|lengte)[:\s]*(\d+\.?\d*)\s*(?:m|cm)',
-        r'(\d+\.?\d*)\s*(?:m|cm)\s*(?:minimum|min)',
         r'minimumlengte[:\s]*(\d+\.?\d*)',
         r'minimum\s+length\s+(\d+\.?\d*)\s*m',
     ]
     
-    for pattern in height_patterns:
+    for pattern in min_patterns:
         match = re.search(pattern, page_text)
         if match:
             height = parse_height_from_text(match.group(0))
@@ -220,20 +504,46 @@ def scrape_efteling_attraction(slug: str, base_info: dict, session) -> dict:
                 result["min_height_cm"] = height
                 break
     
-    # Extract companion height
-    companion_patterns = [
-        r'(?:children|kinderen)\s+between\s+(\d+\.?\d*)\s*(?:m|cm)\s+and\s+(\d+\.?\d*)',
-        r'tussen\s+(\d+\.?\d*)\s*(?:m|cm)\s+en\s+(\d+\.?\d*)',
-        r'between\s+(\d+\.?\d*)\s*m?\s+and\s+(\d+\.?\d*)\s*m?\s+with\s+company',
+    # Pattern 2: Supervision/companion requirement "Children < X m under supervision" or "with company"
+    supervision_patterns = [
+        r'children\s*<\s*(\d+\.?\d*)\s*m\s+(?:under\s+supervision|with\s+company|with\s+companion)',
+        r'children\s*<\s*(\d+\.?\d*)\s*m\s+with\s+company\s+aged\s+(\d+)',
+        r'kinderen\s*<\s*(\d+\.?\d*)\s*m\s+(?:onder\s+begeleiding|met\s+begeleiding)',
     ]
     
-    for pattern in companion_patterns:
+    for pattern in supervision_patterns:
         match = re.search(pattern, page_text)
         if match:
-            companion_height = parse_height_from_text(f"{match.group(1)} m")
-            if companion_height:
-                result["min_height_with_companion_cm"] = companion_height
-                result["companion_age"] = 16
+            height = float(match.group(1))
+            if height < 10:  # It's in meters
+                height = int(height * 100)
+            result["supervision_height_cm"] = int(height)
+            
+            # Check if companion age is specified
+            if len(match.groups()) > 1 and match.group(2):
+                result["companion_age"] = int(match.group(2))
+            elif 'company' in match.group(0) or 'companion' in match.group(0):
+                result["companion_age"] = 16  # Default companion age
+            break
+    
+    # Pattern 3: Between X and Y with companion (for rides like Joris en de Draak)
+    between_patterns = [
+        r'children\s+between\s+(\d+\.?\d*)\s*(?:m|cm)?\s+and\s+(\d+\.?\d*)\s*(?:m|cm)?\s+with\s+company',
+        r'between\s+(\d+\.?\d*)\s*m?\s+and\s+(\d+\.?\d*)\s*m?\s+with',
+    ]
+    
+    for pattern in between_patterns:
+        match = re.search(pattern, page_text)
+        if match:
+            lower = float(match.group(1))
+            upper = float(match.group(2))
+            if lower < 10:
+                lower = int(lower * 100)
+            if upper < 10:
+                upper = int(upper * 100)
+            result["supervision_height_cm"] = int(lower)
+            result["min_height_cm"] = int(upper)
+            result["companion_age"] = 16
             break
     
     # Extract advisory age
@@ -249,24 +559,55 @@ def scrape_efteling_attraction(slug: str, base_info: dict, session) -> dict:
             result["advisory_age"] = int(match.group(1))
             break
     
-    # Collect warnings
-    warning_map = {
-        "not suitable for pregnant": "Not suitable for pregnant women",
-        "medical condition": "Not suitable with medical conditions",
-        "you may get wet": "You may get wet",
-        "in the dark": "Partly in the dark",
-        "loud noise": "Loud noises",
-        "frightening": "Frightening effects",
-        "dizzy": "May cause dizziness",
-        "g-force": "G-forces",
-    }
+    # Extract access conditions
+    access = {}
     
-    warnings = []
-    for keyword, warning in warning_map.items():
-        if keyword in page_text:
-            warnings.append(warning)
+    # Wheelchair accessibility
+    if 'accessible by wheelchair' in page_text:
+        if 'with a transfer' in page_text:
+            access['wheelchair'] = 'transfer'
+        else:
+            access['wheelchair'] = 'accessible'
+    elif 'not accessible' in page_text and 'wheelchair' in page_text:
+        access['wheelchair'] = 'not_accessible'
     
-    result["warnings"] = warnings[:5]
+    # Pregnancy
+    if 'not suitable for pregnant' in page_text or 'niet geschikt voor zwangere' in page_text:
+        access['pregnant'] = True
+    
+    # Injuries
+    if 'not suitable in case of injur' in page_text or 'not suitable for people with injur' in page_text:
+        access['injuries'] = True
+    
+    # Cameras
+    if 'cameras not allowed' in page_text or "camera's niet toegestaan" in page_text:
+        access['cameras'] = True
+    
+    # Guide dogs
+    if 'guide dog' in page_text or 'assistance dog' in page_text or 'geleidehond' in page_text:
+        access['guide_dogs'] = True
+    
+    # Single rider
+    if 'single rider' in page_text:
+        access['single_rider'] = True
+    
+    # Sensory conditions
+    if 'in the dark' in page_text or 'darkness' in page_text:
+        access['dark'] = True
+    if 'loud noise' in page_text:
+        access['loud'] = True
+    if 'dizzy' in page_text or 'dizziness' in page_text:
+        access['dizzy'] = True
+    if 'you may get wet' in page_text or 'wet' in page_text and 'water' in page_text:
+        access['wet'] = True
+    if 'smoke' in page_text or 'fog' in page_text:
+        access['fog'] = True
+    if 'fire' in page_text or 'flames' in page_text:
+        access['fire'] = True
+    if 'surprising effect' in page_text:
+        access['surprising'] = True
+    
+    result["access"] = access
     result["scrape_status"] = "success"
     
     return result
@@ -326,35 +667,63 @@ def apply_fallback_data(attractions: List[dict]) -> List[dict]:
             fallback = FALLBACK_HEIGHT_DATA[name]
             if attr.get("min_height_cm") is None:
                 attr["min_height_cm"] = fallback.get("min_height_cm")
-            if attr.get("min_height_with_companion_cm") is None:
-                attr["min_height_with_companion_cm"] = fallback.get("min_height_with_companion_cm")
+            if attr.get("supervision_height_cm") is None:
+                attr["supervision_height_cm"] = fallback.get("supervision_height_cm")
             if attr.get("companion_age") is None:
                 attr["companion_age"] = fallback.get("companion_age")
             if attr.get("advisory_age") is None:
                 attr["advisory_age"] = fallback.get("advisory_age")
+            # Apply access conditions
+            if "access" in fallback and not attr.get("access"):
+                attr["access"] = fallback["access"]
         
         if name in ATTRACTION_NOTES and not attr.get("notes"):
             attr["notes"] = ATTRACTION_NOTES[name]
+        
+        # Ensure access dict exists
+        if "access" not in attr:
+            attr["access"] = {}
     
     return attractions
 
 
 def categorize_by_height(attractions: list, height_cm: int) -> dict:
-    """Categorize attractions by availability for a given height"""
+    """
+    Categorize attractions by availability for a given height.
+    
+    Logic:
+    - If no min_height AND no supervision_height: Can ride independently (no restrictions)
+    - If no min_height AND height >= supervision_height: Can ride independently
+    - If no min_height AND height < supervision_height: Needs supervision/companion
+    - If min_height AND height >= min_height: Can ride independently
+    - If min_height AND supervision_height AND height >= supervision_height: Needs companion
+    - If min_height AND height < min_height (and < supervision if exists): Cannot ride
+    """
     result = {'independent': [], 'with_companion': [], 'not_available': []}
     
     for attr in attractions:
         min_h = attr.get("min_height_cm")
-        companion_h = attr.get("min_height_with_companion_cm")
+        supervision_h = attr.get("supervision_height_cm")
         
-        if min_h is None:
+        # Case 1: No restrictions at all
+        if min_h is None and supervision_h is None:
             result['independent'].append(attr)
-        elif height_cm >= min_h:
-            result['independent'].append(attr)
-        elif companion_h and height_cm >= companion_h:
-            result['with_companion'].append(attr)
-        else:
-            result['not_available'].append(attr)
+        
+        # Case 2: Only supervision requirement (no hard minimum)
+        elif min_h is None and supervision_h is not None:
+            if height_cm >= supervision_h:
+                result['independent'].append(attr)
+            else:
+                result['with_companion'].append(attr)
+        
+        # Case 3: Hard minimum exists
+        elif min_h is not None:
+            if height_cm >= min_h:
+                result['independent'].append(attr)
+            elif supervision_h is not None and height_cm >= supervision_h:
+                result['with_companion'].append(attr)
+            else:
+                result['not_available'].append(attr)
     
     return result
 

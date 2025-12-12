@@ -12,6 +12,24 @@ from flask import Flask, render_template_string, jsonify, request
 
 app = Flask(__name__)
 
+# Security headers
+@app.after_request
+def add_security_headers(response):
+    """Add security headers to all responses"""
+    # Prevent XSS attacks
+    response.headers['Content-Security-Policy'] = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:;"
+    # Prevent clickjacking
+    response.headers['X-Frame-Options'] = 'DENY'
+    # Prevent MIME-sniffing
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    # XSS filter
+    response.headers['X-XSS-Protection'] = '1; mode=block'
+    # Control referrer information
+    response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+    # Restrict permissions
+    response.headers['Permissions-Policy'] = 'geolocation=(), microphone=(), camera=()'
+    return response
+
 DATA_DIR = Path("/app/data")
 DATA_FILE = DATA_DIR / "attractions.json"
 
@@ -305,6 +323,64 @@ HTML_TEMPLATE = """
         .source-link { color: var(--efteling-gold); text-decoration: none; word-break: break-all; }
         .source-link:hover { text-decoration: underline; }
         
+        .access-icons {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+            margin-top: 8px;
+            padding-top: 8px;
+            border-top: 1px solid rgba(0,0,0,0.1);
+        }
+        
+        .access-icon {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            font-size: 12px;
+            cursor: help;
+        }
+        
+        .access-icon.warning { background: #fee2e2; color: #b91c1c; }
+        .access-icon.info { background: #dbeafe; color: #1e40af; }
+        .access-icon.good { background: #d1fae5; color: #065f46; }
+        .access-icon.neutral { background: #f3f4f6; color: #374151; }
+        
+        .wait-time {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            margin-top: 6px;
+        }
+        .wait-time.open { background: #dcfce7; color: #166534; }
+        .wait-time.closed { background: #f3f4f6; color: #6b7280; }
+        .wait-time.busy { background: #fef3c7; color: #92400e; }
+        .wait-time.very-busy { background: #fee2e2; color: #991b1b; }
+        
+        .park-status {
+            text-align: center;
+            padding: 12px 20px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            font-weight: 600;
+        }
+        .park-status.open { background: #dcfce7; color: #166534; }
+        .park-status.closed { background: #f3f4f6; color: #6b7280; }
+        
+        .attribution {
+            text-align: center;
+            font-size: 0.8rem;
+            opacity: 0.7;
+            margin-top: 10px;
+        }
+        .attribution a { color: var(--efteling-gold); }
+        
         footer {
             text-align: center;
             padding: 30px;
@@ -362,6 +438,16 @@ HTML_TEMPLATE = """
                 </div>
             </div>
             
+            {% if wait_times_info and wait_times_info.park_open is not none %}
+            <div class="park-status {{ 'open' if wait_times_info.park_open else 'closed' }}">
+                {% if wait_times_info.park_open %}
+                🎢 Park is OPEN - Live wait times available
+                {% else %}
+                🌙 Park is CLOSED - Wait times unavailable
+                {% endif %}
+            </div>
+            {% endif %}
+            
             <div class="category available">
                 <h2><span class="category-icon">✅</span> Can Ride Independently ({{ categories.independent|length }})</h2>
                 <div class="attractions-grid">
@@ -369,9 +455,22 @@ HTML_TEMPLATE = """
                     <a href="{{ attr.url }}" target="_blank" rel="noopener" class="attraction-card">
                         <div class="attraction-name">{{ attr.name }}</div>
                         <div class="attraction-type">{{ attr.type_dutch or attr.type }}</div>
+                        {% if attr.wait_time is not none or attr.is_open is not none %}
+                        <div class="wait-time {% if attr.is_open == false %}closed{% elif attr.wait_time and attr.wait_time >= 45 %}very-busy{% elif attr.wait_time and attr.wait_time >= 20 %}busy{% else %}open{% endif %}">
+                            {% if attr.is_open == false %}
+                            🔴 Closed
+                            {% elif attr.wait_time is not none %}
+                            ⏱️ {{ attr.wait_time }} min
+                            {% else %}
+                            🟢 Open
+                            {% endif %}
+                        </div>
+                        {% endif %}
                         <div class="attraction-badges">
                             {% if attr.min_height_cm %}
                             <span class="badge badge-height">Min: {{ attr.min_height_cm }} cm</span>
+                            {% elif attr.supervision_height_cm %}
+                            <span class="badge badge-none">No min height</span>
                             {% else %}
                             <span class="badge badge-none">No height req.</span>
                             {% endif %}
@@ -380,6 +479,25 @@ HTML_TEMPLATE = """
                             {% endif %}
                         </div>
                         {% if attr.notes %}<div class="attraction-notes">{{ attr.notes }}</div>{% endif %}
+                        {% if attr.access %}
+                        <div class="access-icons">
+                            {% if attr.access.wheelchair == 'accessible' %}<span class="access-icon good" title="Wheelchair accessible">♿</span>{% endif %}
+                            {% if attr.access.wheelchair == 'transfer' %}<span class="access-icon info" title="Wheelchair with transfer">🔄</span>{% endif %}
+                            {% if attr.access.wheelchair == 'not_accessible' %}<span class="access-icon warning" title="Not wheelchair accessible">🚫</span>{% endif %}
+                            {% if attr.access.pregnant %}<span class="access-icon warning" title="Not suitable for pregnant women">🤰</span>{% endif %}
+                            {% if attr.access.injuries %}<span class="access-icon warning" title="Not suitable with injuries">🩹</span>{% endif %}
+                            {% if attr.access.cameras %}<span class="access-icon warning" title="Cameras not allowed">📵</span>{% endif %}
+                            {% if attr.access.guide_dogs %}<span class="access-icon good" title="Guide dogs allowed">🦮</span>{% endif %}
+                            {% if attr.access.single_rider %}<span class="access-icon info" title="Single rider available">👤</span>{% endif %}
+                            {% if attr.access.dark %}<span class="access-icon neutral" title="Partly in the dark">🌙</span>{% endif %}
+                            {% if attr.access.loud %}<span class="access-icon neutral" title="Loud noises">🔊</span>{% endif %}
+                            {% if attr.access.wet %}<span class="access-icon info" title="You may get wet">💦</span>{% endif %}
+                            {% if attr.access.dizzy %}<span class="access-icon neutral" title="May cause dizziness">😵</span>{% endif %}
+                            {% if attr.access.fog %}<span class="access-icon neutral" title="Smoke/fog effects">🌫️</span>{% endif %}
+                            {% if attr.access.fire %}<span class="access-icon neutral" title="Fire effects">🔥</span>{% endif %}
+                            {% if attr.access.surprising %}<span class="access-icon neutral" title="Surprising effects">⚡</span>{% endif %}
+                        </div>
+                        {% endif %}
                     </a>
                     {% endfor %}
                 </div>
@@ -387,19 +505,61 @@ HTML_TEMPLATE = """
             
             {% if categories.with_companion %}
             <div class="category companion">
-                <h2><span class="category-icon">👨‍👧</span> With Adult Companion ({{ categories.with_companion|length }})</h2>
+                <h2><span class="category-icon">👨‍👧</span> With Supervision/Companion ({{ categories.with_companion|length }})</h2>
+                <p style="margin-bottom: 15px; opacity: 0.9; font-size: 0.9rem;">
+                    {% if categories.with_companion[0].companion_age %}
+                    Children this height need an accompanying person aged {{ categories.with_companion[0].companion_age }}+
+                    {% else %}
+                    Children this height need adult supervision
+                    {% endif %}
+                </p>
                 <div class="attractions-grid">
                     {% for attr in categories.with_companion %}
                     <a href="{{ attr.url }}" target="_blank" rel="noopener" class="attraction-card">
                         <div class="attraction-name">{{ attr.name }}</div>
                         <div class="attraction-type">{{ attr.type_dutch or attr.type }}</div>
+                        {% if attr.wait_time is not none or attr.is_open is not none %}
+                        <div class="wait-time {% if attr.is_open == false %}closed{% elif attr.wait_time and attr.wait_time >= 45 %}very-busy{% elif attr.wait_time and attr.wait_time >= 20 %}busy{% else %}open{% endif %}">
+                            {% if attr.is_open == false %}
+                            🔴 Closed
+                            {% elif attr.wait_time is not none %}
+                            ⏱️ {{ attr.wait_time }} min
+                            {% else %}
+                            🟢 Open
+                            {% endif %}
+                        </div>
+                        {% endif %}
                         <div class="attraction-badges">
-                            <span class="badge badge-companion">With companion: {{ attr.min_height_with_companion_cm }} cm</span>
+                            {% if attr.supervision_height_cm %}
+                            <span class="badge badge-companion">&lt;{{ attr.supervision_height_cm }}cm needs companion</span>
+                            {% endif %}
+                            {% if attr.min_height_cm %}
+                            <span class="badge badge-height">Solo: {{ attr.min_height_cm }}cm+</span>
+                            {% endif %}
                             {% if attr.advisory_age %}
                             <span class="badge badge-age">Age {{ attr.advisory_age }}+</span>
                             {% endif %}
                         </div>
                         {% if attr.notes %}<div class="attraction-notes">{{ attr.notes }}</div>{% endif %}
+                        {% if attr.access %}
+                        <div class="access-icons">
+                            {% if attr.access.wheelchair == 'accessible' %}<span class="access-icon good" title="Wheelchair accessible">♿</span>{% endif %}
+                            {% if attr.access.wheelchair == 'transfer' %}<span class="access-icon info" title="Wheelchair with transfer">🔄</span>{% endif %}
+                            {% if attr.access.wheelchair == 'not_accessible' %}<span class="access-icon warning" title="Not wheelchair accessible">🚫</span>{% endif %}
+                            {% if attr.access.pregnant %}<span class="access-icon warning" title="Not suitable for pregnant women">🤰</span>{% endif %}
+                            {% if attr.access.injuries %}<span class="access-icon warning" title="Not suitable with injuries">🩹</span>{% endif %}
+                            {% if attr.access.cameras %}<span class="access-icon warning" title="Cameras not allowed">📵</span>{% endif %}
+                            {% if attr.access.guide_dogs %}<span class="access-icon good" title="Guide dogs allowed">🦮</span>{% endif %}
+                            {% if attr.access.single_rider %}<span class="access-icon info" title="Single rider available">👤</span>{% endif %}
+                            {% if attr.access.dark %}<span class="access-icon neutral" title="Partly in the dark">🌙</span>{% endif %}
+                            {% if attr.access.loud %}<span class="access-icon neutral" title="Loud noises">🔊</span>{% endif %}
+                            {% if attr.access.wet %}<span class="access-icon info" title="You may get wet">💦</span>{% endif %}
+                            {% if attr.access.dizzy %}<span class="access-icon neutral" title="May cause dizziness">😵</span>{% endif %}
+                            {% if attr.access.fog %}<span class="access-icon neutral" title="Smoke/fog effects">🌫️</span>{% endif %}
+                            {% if attr.access.fire %}<span class="access-icon neutral" title="Fire effects">🔥</span>{% endif %}
+                            {% if attr.access.surprising %}<span class="access-icon neutral" title="Surprising effects">⚡</span>{% endif %}
+                        </div>
+                        {% endif %}
                     </a>
                     {% endfor %}
                 </div>
@@ -415,12 +575,36 @@ HTML_TEMPLATE = """
                         <div class="attraction-name">{{ attr.name }}</div>
                         <div class="attraction-type">{{ attr.type_dutch or attr.type }}</div>
                         <div class="attraction-badges">
-                            <span class="badge badge-height">Requires: {{ attr.min_height_cm }} cm</span>
+                            {% if attr.supervision_height_cm %}
+                            <span class="badge badge-companion">With companion: {{ attr.supervision_height_cm }}cm+</span>
+                            {% endif %}
+                            {% if attr.min_height_cm %}
+                            <span class="badge badge-height">Solo: {{ attr.min_height_cm }}cm+</span>
+                            {% endif %}
                             {% if attr.advisory_age %}
                             <span class="badge badge-age">Age {{ attr.advisory_age }}+</span>
                             {% endif %}
                         </div>
                         {% if attr.notes %}<div class="attraction-notes">{{ attr.notes }}</div>{% endif %}
+                        {% if attr.access %}
+                        <div class="access-icons">
+                            {% if attr.access.wheelchair == 'accessible' %}<span class="access-icon good" title="Wheelchair accessible">♿</span>{% endif %}
+                            {% if attr.access.wheelchair == 'transfer' %}<span class="access-icon info" title="Wheelchair with transfer">🔄</span>{% endif %}
+                            {% if attr.access.wheelchair == 'not_accessible' %}<span class="access-icon warning" title="Not wheelchair accessible">🚫</span>{% endif %}
+                            {% if attr.access.pregnant %}<span class="access-icon warning" title="Not suitable for pregnant women">🤰</span>{% endif %}
+                            {% if attr.access.injuries %}<span class="access-icon warning" title="Not suitable with injuries">🩹</span>{% endif %}
+                            {% if attr.access.cameras %}<span class="access-icon warning" title="Cameras not allowed">📵</span>{% endif %}
+                            {% if attr.access.guide_dogs %}<span class="access-icon good" title="Guide dogs allowed">🦮</span>{% endif %}
+                            {% if attr.access.single_rider %}<span class="access-icon info" title="Single rider available">👤</span>{% endif %}
+                            {% if attr.access.dark %}<span class="access-icon neutral" title="Partly in the dark">🌙</span>{% endif %}
+                            {% if attr.access.loud %}<span class="access-icon neutral" title="Loud noises">🔊</span>{% endif %}
+                            {% if attr.access.wet %}<span class="access-icon info" title="You may get wet">💦</span>{% endif %}
+                            {% if attr.access.dizzy %}<span class="access-icon neutral" title="May cause dizziness">😵</span>{% endif %}
+                            {% if attr.access.fog %}<span class="access-icon neutral" title="Smoke/fog effects">🌫️</span>{% endif %}
+                            {% if attr.access.fire %}<span class="access-icon neutral" title="Fire effects">🔥</span>{% endif %}
+                            {% if attr.access.surprising %}<span class="access-icon neutral" title="Surprising effects">⚡</span>{% endif %}
+                        </div>
+                        {% endif %}
                     </a>
                     {% endfor %}
                 </div>
@@ -449,13 +633,16 @@ HTML_TEMPLATE = """
         {% endif %}
         
         <h2 class="section-title">📋 Complete Requirements Table</h2>
+        <p style="text-align: center; margin-bottom: 15px; opacity: 0.9; font-size: 0.9rem;">
+            💡 "Ride Alone" = minimum height to ride independently | "Companion Needed" = children below this height need adult supervision
+        </p>
         <table>
             <thead>
                 <tr>
                     <th>Attraction</th>
                     <th>Type</th>
-                    <th>Min Height</th>
-                    <th>With Companion</th>
+                    <th>Ride Alone</th>
+                    <th>Companion Needed</th>
                     <th>Age</th>
                 </tr>
             </thead>
@@ -464,13 +651,50 @@ HTML_TEMPLATE = """
                 <tr class="clickable-row" onclick="window.open('{{ attr.url }}', '_blank')">
                     <td><a href="{{ attr.url }}" target="_blank" class="external-link" onclick="event.stopPropagation()">{{ attr.name }} ↗</a></td>
                     <td>{{ attr.type }}</td>
-                    <td>{% if attr.min_height_cm %}{{ attr.min_height_cm }} cm{% else %}Any{% endif %}</td>
-                    <td>{% if attr.min_height_with_companion_cm %}{{ attr.min_height_with_companion_cm }} cm{% else %}-{% endif %}</td>
+                    <td>
+                        {% if attr.min_height_cm %}
+                            {{ attr.min_height_cm }}cm+
+                        {% elif attr.supervision_height_cm %}
+                            {{ attr.supervision_height_cm }}cm+
+                        {% else %}
+                            ✓ Any height
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if attr.min_height_cm and attr.supervision_height_cm %}
+                            {{ attr.supervision_height_cm }}-{{ attr.min_height_cm }}cm
+                        {% elif attr.supervision_height_cm and not attr.min_height_cm %}
+                            Below {{ attr.supervision_height_cm }}cm
+                        {% else %}
+                            -
+                        {% endif %}
+                    </td>
                     <td>{% if attr.advisory_age %}{{ attr.advisory_age }}+{% else %}-{% endif %}</td>
                 </tr>
                 {% endfor %}
             </tbody>
         </table>
+        
+        <div class="sources-section" style="margin-top: 30px;">
+            <h2>🔑 Access Icon Legend</h2>
+            <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; margin-top: 15px;">
+                <div><span class="access-icon good">♿</span> Wheelchair accessible</div>
+                <div><span class="access-icon info">🔄</span> Wheelchair with transfer</div>
+                <div><span class="access-icon warning">🚫</span> Not wheelchair accessible</div>
+                <div><span class="access-icon warning">🤰</span> Not for pregnant women</div>
+                <div><span class="access-icon warning">🩹</span> Not suitable with injuries</div>
+                <div><span class="access-icon warning">📵</span> Cameras not allowed</div>
+                <div><span class="access-icon good">🦮</span> Guide dogs allowed</div>
+                <div><span class="access-icon info">👤</span> Single rider available</div>
+                <div><span class="access-icon neutral">🌙</span> Partly in the dark</div>
+                <div><span class="access-icon neutral">🔊</span> Loud noises</div>
+                <div><span class="access-icon info">💦</span> You may get wet</div>
+                <div><span class="access-icon neutral">😵</span> May cause dizziness</div>
+                <div><span class="access-icon neutral">🌫️</span> Smoke/fog effects</div>
+                <div><span class="access-icon neutral">🔥</span> Fire effects</div>
+                <div><span class="access-icon neutral">⚡</span> Surprising effects</div>
+            </div>
+        </div>
         
         <div class="sources-section">
             <h2>📚 Data Sources</h2>
@@ -484,11 +708,22 @@ HTML_TEMPLATE = """
                 {% endif %}
             </div>
             {% endfor %}
+            {% if wait_times_info and wait_times_info.source %}
+            <div class="source-item">
+                <span class="source-status success"></span>
+                <strong>Wait Times</strong>
+                <a href="{{ wait_times_info.source }}" target="_blank" class="source-link">{{ wait_times_info.source }}</a>
+                <span style="opacity: 0.7; font-size: 0.85rem; margin-left: auto;">(updates every 5 min)</span>
+            </div>
+            {% endif %}
         </div>
         
         <footer>
-            <p>Data auto-updates every 6 hours | Always verify at the park</p>
-            <p>🎢 Made with ❤️ for Efteling families</p>
+            <p>Height data auto-updates every 6 hours | Wait times update every 5 minutes</p>
+            {% if wait_times_info and wait_times_info.attribution %}
+            <p class="attribution"><a href="https://queue-times.com/parks/160" target="_blank">{{ wait_times_info.attribution }}</a></p>
+            {% endif %}
+            <p>🎢 Made with ❤️ for Efteling families | Always verify at the park</p>
         </footer>
     </div>
     
@@ -540,7 +775,8 @@ def index():
         sources=data.get('sources', []),
         last_updated=last_updated,
         total_attractions=data.get('total_attractions', 0),
-        total_shows=data.get('total_shows', 0)
+        total_shows=data.get('total_shows', 0),
+        wait_times_info=data.get('wait_times_info', {})
     )
 
 @app.route('/api/data')
@@ -551,10 +787,20 @@ def api_data():
 
 @app.route('/api/scrape')
 def api_scrape():
-    """Trigger manual scrape"""
+    """Trigger manual scrape of height requirements"""
     import subprocess
     try:
         result = subprocess.run(['python', '/app/scraper.py'], capture_output=True, text=True, timeout=300)
+        return jsonify({'status': 'success' if result.returncode == 0 else 'error', 'stdout': result.stdout, 'stderr': result.stderr})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+@app.route('/api/wait_times')
+def api_wait_times():
+    """Trigger manual refresh of wait times"""
+    import subprocess
+    try:
+        result = subprocess.run(['python', '/app/wait_times.py'], capture_output=True, text=True, timeout=60)
         return jsonify({'status': 'success' if result.returncode == 0 else 'error', 'stdout': result.stdout, 'stderr': result.stderr})
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500

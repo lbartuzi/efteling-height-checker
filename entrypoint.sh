@@ -2,12 +2,17 @@
 
 echo "Starting Efteling Height Requirements Service..."
 
-# Create log file
+# Create log files
 touch /var/log/scraper.log
+touch /var/log/wait_times.log
 
-# Run initial scrape
+# Run initial height requirements scrape
 echo "Running initial data scrape..."
 python /app/scraper.py
+
+# Run initial wait times fetch
+echo "Running initial wait times fetch..."
+python /app/wait_times.py || echo "Wait times fetch failed (park may be closed)"
 
 # Start cron daemon in background
 echo "Starting cron scheduler..."
